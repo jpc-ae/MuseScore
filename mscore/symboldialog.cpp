@@ -1,7 +1,6 @@
 //=============================================================================
 //  MusE Score
 //  Linux Music Score Editor
-//  $Id: symboldialog.cpp 5384 2012-02-27 12:21:49Z wschweer $
 //
 //  Copyright (C) 2007-2016 Werner Schweer and others
 //
@@ -19,19 +18,17 @@
 //=============================================================================
 
 #include "symboldialog.h"
+#include "menus.h"
 #include "palette.h"
-#include "musescore.h"
 #include "libmscore/score.h"
 #include "libmscore/sym.h"
 #include "libmscore/style.h"
 #include "libmscore/element.h"
 #include "libmscore/symbol.h"
-#include "preferences.h"
 
 namespace Ms {
 
 extern MasterScore* gscore;
-extern QMap<QString, QStringList>* smuflRanges();
 
 //---------------------------------------------------------
 //   createSymbolPalette

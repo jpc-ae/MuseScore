@@ -66,35 +66,19 @@ and it is edited (via the normalized text); so it is derived from Text.
 //   @P continuationLine   enum (FiguredBassItem.NONE, .SIMPLE, .EXTENDED)  whether item has continuation line or not, and of which type
 //   @P digit              int                              main digit(s) (0 - 9)
 //   @P displayText        string                           text displayed (depends on configured fonts) (read only)
-//   @P normalizedText     string                           conventional textual representation of item properties (= text used during input) (read ony)
-//   @P parenthesis1       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parentesis before the prefix
-//   @P parenthesis2       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parentesis after the prefix / before the digit
-//   @P parenthesis3       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parentesis after the digit / before the suffix
-//   @P parenthesis4       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parentesis after the suffix / before the cont. line
-//   @P parenthesis5       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parentesis after the cont. line
+//   @P normalizedText     string                           conventional textual representation of item properties (= text used during input) (read only)
+//   @P parenthesis1       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parenthesis before the prefix
+//   @P parenthesis2       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parenthesis after the prefix / before the digit
+//   @P parenthesis3       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parenthesis after the digit / before the suffix
+//   @P parenthesis4       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parenthesis after the suffix / before the cont. line
+//   @P parenthesis5       enum (FiguredBassItem.NONE, .ROUNDOPEN, .ROUNDCLOSED, .SQUAREDOPEN, .SQUAREDCLOSED)  parenthesis after the cont. line
 //   @P prefix             enum (FiguredBassItem.NONE, .DOUBLEFLAT, .FLAT, .NATURAL, .SHARP, .DOUBLESHARP, .PLUS, .BACKSLASH, .SLASH)  accidental before the digit
 //   @P suffix             enum (FiguredBassItem.NONE, .DOUBLEFLAT, .FLAT, .NATURAL, .SHARP, .DOUBLESHARP, .PLUS, .BACKSLASH, .SLASH)  accidental/diacritic after the digit
 //---------------------------------------------------------
 
 class FiguredBass;
 
-class FiguredBassItem : public Element {
-      Q_GADGET
-      Q_ENUMS(Modifier)
-      Q_ENUMS(Parenthesis)
-      Q_ENUMS(ContLine)
-      Q_PROPERTY(Ms::FiguredBassItem::ContLine     continuationLine  READ contLine     WRITE undoSetContLine)
-      Q_PROPERTY(int                               digit             READ digit        WRITE undoSetDigit)
-      Q_PROPERTY(QString                           displayText       READ displayText)
-      Q_PROPERTY(QString                           normalizedText    READ normalizedText)
-      Q_PROPERTY(Ms::FiguredBassItem::Parenthesis  parenthesis1      READ parenth1     WRITE undoSetParenth1)
-      Q_PROPERTY(Ms::FiguredBassItem::Parenthesis  parenthesis2      READ parenth2     WRITE undoSetParenth2)
-      Q_PROPERTY(Ms::FiguredBassItem::Parenthesis  parenthesis3      READ parenth3     WRITE undoSetParenth3)
-      Q_PROPERTY(Ms::FiguredBassItem::Parenthesis  parenthesis4      READ parenth4     WRITE undoSetParenth4)
-      Q_PROPERTY(Ms::FiguredBassItem::Parenthesis  parenthesis5      READ parenth5     WRITE undoSetParenth5)
-      Q_PROPERTY(Ms::FiguredBassItem::Modifier     prefix            READ prefix       WRITE undoSetPrefix)
-      Q_PROPERTY(Ms::FiguredBassItem::Modifier     suffix            READ suffix       WRITE undoSetSuffix)
-
+class FiguredBassItem final : public Element {
    public:
       enum class Modifier : char {
             NONE = 0,
@@ -216,9 +200,9 @@ class FiguredBassItem : public Element {
       QString           normalizedText() const;
       QString           displayText() const           { return _displayText;  }
 
-      virtual QVariant  getProperty(P_ID propertyId) const override;
-      virtual bool      setProperty(P_ID propertyId, const QVariant&) override;
-      virtual QVariant  propertyDefault(P_ID) const override;
+      virtual QVariant  getProperty(Pid propertyId) const override;
+      virtual bool      setProperty(Pid propertyId, const QVariant&) override;
+      virtual QVariant  propertyDefault(Pid) const override;
       };
 
 //---------------------------------------------------------
@@ -245,21 +229,17 @@ struct FiguredBassFont {
 //   @P ticks   int   duration in ticks
 //---------------------------------------------------------
 
-class FiguredBass : public Text {
-      Q_GADGET
-
-//      Q_PROPERTY(QDeclarativeListProperty<FiguredBassItem> items READ qmlItems)
-      Q_PROPERTY(bool   onNote      READ onNote)
-      Q_PROPERTY(int    ticks       READ ticks  WRITE setTicks)
-
+class FiguredBass final : public TextBase {
       std::vector<FiguredBassItem*> items;      // the individual lines of the F.B.
-      QVector<qreal>    _lineLenghts;           // lengths of duration indicator lines (in raster units)
+      QVector<qreal>    _lineLengths;           // lengths of duration indicator lines (in raster units)
       bool              _onNote;                // true if this element is on a staff note | false if it is betweee notes
-      int               _ticks;                 // the duration (used for cont. lines and for multiple F.B.
+      Fraction          _ticks;                 // the duration (used for cont. lines and for multiple F.B.
                                                 // under the same note)
       qreal             _printedLineLength;     // the length of lines actually printed (i.e. continuation lines)
       void              layoutLines();
       bool              hasParentheses() const; // read / write MusicXML support
+
+      virtual Sid getPropertyStyle(Pid) const override;
 
    public:
       FiguredBass(Score* s = 0);
@@ -267,7 +247,7 @@ class FiguredBass : public Text {
       ~FiguredBass();
 
       // a convenience static function to create/retrieve a new FiguredBass into/from its intended parent
-      static FiguredBass *    addFiguredBassToSegment(Segment *seg, int track, int extTicks, bool *pNew);
+      static FiguredBass* addFiguredBassToSegment(Segment* seg, int track, const Fraction& extTicks, bool *pNew);
 
       // static functions for font config files
       static bool       readConfigFile(const QString& fileName);
@@ -276,7 +256,7 @@ class FiguredBass : public Text {
                               qreal * pSize, qreal * pLineHeight);
 
       // standard re-implemented virtual functions
-      virtual FiguredBass*    clone() const override     { return new FiguredBass(*this); }
+      virtual FiguredBass*    clone() const override   { return new FiguredBass(*this); }
       virtual ElementType   type() const override      { return ElementType::FIGURED_BASS; }
       virtual void      draw(QPainter* painter) const override;
       virtual void      endEdit(EditData&) override;
@@ -304,23 +284,23 @@ class FiguredBass : public Text {
 //                                                            list.append(&item);
 //                                                      return QDeclarativeListProperty<FiguredBassItem>(this, &items, qmlItemsAppend);
 //                                                }
-      qreal             lineLength(int idx) const     {   if(_lineLenghts.size() > idx)
-                                                            return _lineLenghts.at(idx);
+      qreal             lineLength(int idx) const     {   if(_lineLengths.size() > idx)
+                                                            return _lineLengths.at(idx);
                                                           return 0;   }
       qreal             printedLineLength() const     { return _printedLineLength; }
       bool              onNote() const          { return _onNote; }
-      int               numOfItems() const      { return items.size(); }
+      size_t            numOfItems() const      { return items.size(); }
       void              setOnNote(bool val)     { _onNote = val;  }
       Segment *         segment() const         { return (Segment*)(parent()); }
-      int               ticks() const           { return _ticks;  }
-      void              setTicks(int val)       { _ticks = val;   }
+      Fraction          ticks() const           { return _ticks;  }
+      void              setTicks(const Fraction& v) { _ticks = v;   }
 
       qreal             additionalContLineX(qreal pagePosY) const;// returns the X coord (in page coord) of cont. line at pagePosY, if any
       FiguredBass *     nextFiguredBass() const;                  // returns next *adjacent* f.b. item, if any
 
-      virtual QVariant  getProperty(P_ID propertyId) const override;
-      virtual bool      setProperty(P_ID propertyId, const QVariant&) override;
-      virtual QVariant  propertyDefault(P_ID) const override;
+      virtual QVariant  getProperty(Pid propertyId) const override;
+      virtual bool      setProperty(Pid propertyId, const QVariant&) override;
+      virtual QVariant  propertyDefault(Pid) const override;
 
       void appendItem(FiguredBassItem* item) {  items.push_back(item); }
       };

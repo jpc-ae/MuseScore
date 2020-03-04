@@ -31,8 +31,7 @@ namespace Ms {
 
 void FotoLasso::startEdit(EditData& ed)
       {
-      ed.grips   = 8;
-      ed.curGrip = Grip(0);
+      Lasso::startEdit(ed);
       QRectF view = ((ScoreView*)ed.view)->toLogical(QRect(0.0, 0.0, ed.view->geometry().width(), ed.view->geometry().height()));
       if (bbox().isEmpty() || !view.intersects(bbox())) {
             // rect not found - construct new rect with default size & relative position
@@ -52,15 +51,6 @@ void FotoLasso::startEdit(EditData& ed)
 void FotoLasso::endEdit(EditData&)
       {
       setVisible(false);
-      }
-
-//---------------------------------------------------------
-//   updateGrips
-//---------------------------------------------------------
-
-void FotoLasso::updateGrips(EditData& ed) const
-      {
-      Lasso::updateGrips(ed);
       }
 
 //---------------------------------------------------------
@@ -86,9 +76,19 @@ void ScoreView::startFotomode()
             _foto = new FotoLasso(_score);
       else
             _foto->setScore(_score);
+      QRectF view = toLogical(QRect(0.0, 0.0, width(), height()));
+      if (_foto->bbox().isEmpty() || !view.intersects(_foto->bbox())) {
+            // rect not found - construct new rect with default size & relative position
+            qreal w = view.width();
+            qreal h = view.height();
+            QRectF r(w * .3, h * .3, w * .4, h * .4);
+            // convert to absolute position
+            _foto->setbbox(toPhysical(r));
+            }
+      _foto->setFlag(ElementFlag::MOVABLE, true);
       _foto->setVisible(true);
       _score->select(_foto);
-      editData.element = _foto;
+      setEditElement(_foto);
       QAction* a = getAction("fotomode");
       a->setChecked(true);
       startEdit();
@@ -125,9 +125,13 @@ void ScoreView::startFotoDrag()
 
 void ScoreView::doDragFoto(QMouseEvent* ev)
       {
+      _foto->setOffset(QPointF(0.0, 0.0));
       QPointF p = toLogical(ev->pos());
+      QPointF sm = editData.startMove;
+
       QRectF r;
-      r.setCoords(editData.startMove.x(), editData.startMove.y(), p.x(), p.y());
+      r.setCoords(sm.x(), sm.y(), p.x(), p.y());
+
       _foto->setbbox(r.normalized());
 
       QRectF rr(_foto->bbox());
@@ -151,7 +155,7 @@ void ScoreView::endFotoDrag()
       editData.grip.resize(8);
       for (int i = 0; i < 8; ++i)
             editData.grip[i] = r;
-      editData.element = _foto;
+      setEditElement(_foto);
       updateGrips();
       _score->setUpdateAll();
       _score->update();
@@ -310,13 +314,16 @@ void ScoreView::fotoContextPopup(QContextMenuEvent* ev)
 
       a = getAction("copy");
       popup->addAction(a);
+      a = new QAction(tr("Copy with Link to Score"), this);
+      a->setData("copy-link");
+      popup->addAction(a);
 
       popup->addSeparator();
-      a = popup->addAction(tr("Resolution (%1 DPI)...").arg(preferences.pngResolution));
+      a = popup->addAction(tr("Resolution (%1 DPI)…").arg(preferences.getDouble(PREF_EXPORT_PNG_RESOLUTION)));
       a->setData("set-res");
       QAction* bgAction = popup->addAction(tr("Transparent background"));
       bgAction->setCheckable(true);
-      bgAction->setChecked(preferences.pngTransparent);
+      bgAction->setChecked(preferences.getBool(PREF_EXPORT_PNG_USETRANSPARENCY));
       bgAction->setData("set-bg");
 
       popup->addSeparator();
@@ -328,7 +335,7 @@ void ScoreView::fotoContextPopup(QContextMenuEvent* ev)
             a->setData(resizeEntry[i].label);
             popup->addAction(a);
             }
-      QMenu* setSize = new QMenu(tr("Set Standard Size..."));
+      QMenu* setSize = new QMenu(tr("Set Standard Size…"));
       for (int i = 0; i < 4; ++i) {
             a = new QAction(qApp->translate("fotomode", setSizeEntry[i].text), this);
             a->setData(setSizeEntry[i].label);
@@ -337,10 +344,10 @@ void ScoreView::fotoContextPopup(QContextMenuEvent* ev)
       popup->addMenu(setSize);
 
       popup->addSeparator();
-      a = new QAction(tr("Save As (Print Mode)..."), this);
+      a = new QAction(tr("Save As (Print Mode)…"), this);
       a->setData("print");
       popup->addAction(a);
-      a = new QAction(tr("Save As (Screenshot Mode)..."), this);
+      a = new QAction(tr("Save As (Screenshot Mode)…"), this);
       a->setData("screenshot");
       popup->addAction(a);
 
@@ -349,23 +356,24 @@ void ScoreView::fotoContextPopup(QContextMenuEvent* ev)
             return;
       QString cmd(a->data().toString());
       if (cmd == "print")
-            saveFotoAs(true, _foto->bbox());
+            saveFotoAs(true, _foto->canvasBoundingRect());
       else if (cmd == "screenshot")
-            saveFotoAs(false, _foto->bbox());
+            saveFotoAs(false, _foto->canvasBoundingRect());
       else if (cmd == "copy")
             ;
+      else if (cmd == "copy-link")
+            fotoModeCopy(true);
       else if (cmd == "set-res") {
             bool ok;
             double resolution = QInputDialog::getDouble(this,
                tr("Set Output Resolution"),
                tr("Set output resolution for PNG"),
-               preferences.pngResolution,
+               preferences.getDouble(PREF_EXPORT_PNG_RESOLUTION),
                16.0, 2400.0, 1,
                &ok
                );
             if (ok) {
-                  preferences.pngResolution = resolution;
-                  preferences.dirty = true;
+                  preferences.setPreference(PREF_EXPORT_PNG_RESOLUTION, resolution);
                   }
             }
       else if (cmd == "resizePage") {
@@ -390,44 +398,73 @@ void ScoreView::fotoContextPopup(QContextMenuEvent* ev)
             QString val(QString("%1x%2").arg(w).arg(h));
             QSettings().setValue(QString("fotoSize%1").arg(cmd[3]), val);
             }
-      if (bgAction->isChecked() != preferences.pngTransparent) {
-            preferences.pngTransparent = bgAction->isChecked();
-            preferences.dirty = true;
+      if (bgAction->isChecked() != preferences.getBool(PREF_EXPORT_PNG_USETRANSPARENCY)) {
+            preferences.setPreference(PREF_EXPORT_PNG_USETRANSPARENCY, bgAction->isChecked());
             }
+      }
+
+//---------------------------------------------------------
+//   getRectImage
+//---------------------------------------------------------
+
+QImage ScoreView::getRectImage(const QRectF& rect, double dpi, bool transparent, bool printMode)
+      {
+      const double mag = dpi / DPI;
+      const int w = lrint(rect.width()  * mag);
+      const int h = lrint(rect.height() * mag);
+
+      QImage::Format f = QImage::Format_ARGB32_Premultiplied;
+      QImage img(w, h, f);
+      img.setDotsPerMeterX(lrint((dpi * 1000) / INCH));
+      img.setDotsPerMeterY(lrint((dpi * 1000) / INCH));
+      img.fill(transparent ? 0 : 0xffffffff);
+
+      const auto pr = MScore::pixelRatio;
+      MScore::pixelRatio = 1.0 / mag;
+      QPainter p(&img);
+      paintRect(printMode, p, rect, mag);
+      MScore::pixelRatio = pr;
+
+      return img;
       }
 
 //---------------------------------------------------------
 //   fotoModeCopy
 //---------------------------------------------------------
 
-void ScoreView::fotoModeCopy()
+void ScoreView::fotoModeCopy(bool includeLink)
       {
-      // oowriter wants transparent==false
-      bool transparent = false; // preferences.pngTransparent;
-      double convDpi   = preferences.pngResolution;
-      double mag       = convDpi / DPI;
-
-      QRectF r(_foto->bbox());
-
-      int w = lrint(r.width()  * mag);
-      int h = lrint(r.height() * mag);
-
-      QImage::Format f;
-      f = QImage::Format_ARGB32_Premultiplied;
-      QImage printer(w, h, f);
-      printer.setDotsPerMeterX(lrint(DPMM * 1000.0));
-      printer.setDotsPerMeterY(lrint(DPMM * 1000.0));
-      printer.fill(transparent ? 0 : 0xffffffff);
-      QPainter p(&printer);
-      paintRect(true, p, r, mag);
 #if defined(Q_OS_WIN)
-      // workaround for apparent Qt 5.4 bug; corrupt clipboard when using setImage()
-      QPixmap px;
-      px.convertFromImage(printer);
-      QApplication::clipboard()->setPixmap(px);
+      // See https://bugreports.qt.io/browse/QTBUG-11463
+      // while transparent copy/paste works fine inside musescore,
+      // it does not paste into other programs in Windows though
+      bool transparent = false; // preferences.getBool(PREF_EXPORT_PNG_USETRANSPARENCY);
 #else
-      QApplication::clipboard()->setImage(printer);
+      bool transparent = preferences.getBool(PREF_EXPORT_PNG_USETRANSPARENCY);
 #endif
+      double convDpi   = preferences.getDouble(PREF_EXPORT_PNG_RESOLUTION);
+      QRectF r(_foto->canvasBoundingRect());
+
+      QImage printer(getRectImage(r, convDpi, transparent, /* printMode */ true));
+      QApplication::clipboard()->clear();
+
+      if (includeLink) {
+            QUrl url = QUrl::fromLocalFile(score()->masterScore()->fileInfo()->canonicalFilePath());
+            QByteArray imageData;
+            QBuffer buffer(&imageData);
+            buffer.open(QIODevice::WriteOnly);
+            printer.save(&buffer, "PNG");
+            buffer.close();
+            QString html = "<a href=\"" + url.toString() + "\"><img src=\"data:image/png," + imageData.toPercentEncoding() + "\" /></a>";
+            QMimeData *mdata = new QMimeData;
+            mdata->setHtml(html);
+            QApplication::clipboard()->setMimeData(mdata);
+            // TODO: add both, with priority to html
+            //QApplication::clipboard()->setImage(printer);
+            }
+      else {
+            QApplication::clipboard()->setImage(printer);
+            }
       }
 
 //---------------------------------------------------------
@@ -492,8 +529,8 @@ bool ScoreView::saveFotoAs(bool printMode, const QRectF& r)
       if (fi.suffix().toLower() != ext)
             fn += "." + ext;
 
-      bool transparent = preferences.pngTransparent;
-      double convDpi   = preferences.pngResolution;
+      bool transparent = preferences.getBool(PREF_EXPORT_PNG_USETRANSPARENCY);
+      double convDpi   = preferences.getDouble(PREF_EXPORT_PNG_RESOLUTION);
       double mag       = convDpi / DPI;
 
       if (ext == "svg")
@@ -505,16 +542,19 @@ bool ScoreView::saveFotoAs(bool printMode, const QRectF& r)
       double pr = MScore::pixelRatio;
       if (ext == "pdf") {
             QPdfWriter pdfWriter(fn);
+            pdfWriter.setResolution(preferences.getInt(PREF_EXPORT_PDF_DPI));
             mag = pdfWriter.logicalDpiX() / DPI;
-            pdfWriter.setResolution(preferences.exportPdfDpi);
-            QSizeF size(r.width() * mag, r.height() * mag);
-            QPageSize ps(QPageSize::id(size, QPageSize::Inch));
+            QSizeF size(r.width() / DPI, r.height() / DPI);
+            QPageSize ps(size, QPageSize::Inch, "", QPageSize::ExactMatch);
             pdfWriter.setPageSize(ps);
+            pdfWriter.setPageMargins(QMarginsF(0.0, 0.0, 0.0, 0.0));
             pdfWriter.setCreator("MuseScore Version: " VERSION);
             pdfWriter.setTitle(fn);
             MScore::pixelRatio = DPI / pdfWriter.logicalDpiX();
             QPainter p(&pdfWriter);
+            MScore::pdfPrinting = true;
             paintRect(printMode, p, r, mag);
+            MScore::pdfPrinting = false;
             }
       else if (ext == "svg") {
             // note that clipping is not implemented
@@ -531,14 +571,7 @@ bool ScoreView::saveFotoAs(bool printMode, const QRectF& r)
             MScore::pdfPrinting = false;
             }
       else if (ext == "png") {
-            QImage::Format f = QImage::Format_ARGB32_Premultiplied;
-            QImage printer(w, h, f);
-            printer.setDotsPerMeterX(lrint((convDpi * 1000) / INCH));
-            printer.setDotsPerMeterY(lrint((convDpi * 1000) / INCH));
-            printer.fill(transparent ? 0 : 0xffffffff);
-            MScore::pixelRatio = 1.0 / mag;
-            QPainter p(&printer);
-            paintRect(printMode, p, r, mag);
+            QImage printer(getRectImage(r, convDpi, transparent, printMode));
             printer.save(fn, "png");
             }
       else
@@ -569,8 +602,7 @@ void ScoreView::paintRect(bool printMode, QPainter& p, const QRectF& r, double m
                   break;
             p.translate(page->pos());
             QList<Element*> ell = page->items(r.translated(-page->pos()));
-            qStableSort(ell.begin(), ell.end(), elementLessThan);
-            drawElements(p, ell);
+            drawElements(p, ell, nullptr);
             p.translate(-page->pos());
             }
 

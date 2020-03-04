@@ -1,7 +1,6 @@
 //=============================================================================
 //  MusE Score
 //  Linux Music Score Editor
-//  $Id: seq.h 5660 2012-05-22 14:17:39Z wschweer $
 //
 //  Copyright (C) 2002-2009 Werner Schweer and others
 //
@@ -21,6 +20,7 @@
 #ifndef __SEQ_H__
 #define __SEQ_H__
 
+#include "libmscore/rendermidi.h"
 #include "libmscore/sequencer.h"
 #include "libmscore/fraction.h"
 #include "synthesizer/event.h"
@@ -40,7 +40,7 @@ class Measure;
 class Fraction;
 class Driver;
 class Part;
-struct Channel;
+class Channel;
 class ScoreView;
 class MasterSynthesizer;
 class Segment;
@@ -133,7 +133,14 @@ class Seq : public QObject, public Sequencer {
       double meterPeakValue[2];
       int peakTimer[2];
 
-      EventMap events;                    // playlist for playback mode (pre-rendered)
+      EventMap events;                    // playlist for playback mode
+      EventMap::const_iterator eventsEnd;
+      EventMap renderEvents;              // event list that is rendered in background
+      RangeMap renderEventsStatus;
+      MidiRenderer midi;
+      QFuture<void> midiRenderFuture;
+      bool allowBackgroundRendering = false; // should be set to true only when playing, so no
+                                             // score changes are possible.
       EventMap countInEvents;             // playlist of any metronome countin clicks
       QQueue<NPlayEvent> _liveEventQueue; // playlist for score editing and note entry (rendered live)
 
@@ -158,7 +165,30 @@ class Seq : public QObject, public Sequencer {
       QTimer* heartBeatTimer;
       QTimer* noteTimer;
 
-      void collectMeasureEvents(Measure*, int staffIdx);
+      /**
+       * Preferences cached for faster access in realtime context.
+       * Using QSettings-based Ms::Preferences directly results in
+       * audible glitches on some systems (esp. MacOS, see #280493).
+       */
+      struct CachedPreferences {
+            int portMidiOutputLatencyMilliseconds = 0;
+            bool jackTimeBaseMaster = false;
+            bool useJackTransport = false;
+            bool useJackMidi = false;
+            bool useJackAudio = false;
+            bool useAlsaAudio = false;
+            bool usePortAudio = false;
+            bool usePulseAudio = false;
+
+            void update();
+            };
+      CachedPreferences cachedPrefs;
+
+      void startTransport();
+      void stopTransport();
+
+      void renderChunk(const MidiRenderer::Chunk&, EventMap*);
+      void updateEventsEnd();
 
       void setPos(int);
       void playEvent(const NPlayEvent&, unsigned framePos);
@@ -168,6 +198,8 @@ class Seq : public QObject, public Sequencer {
       void unmarkNotes();
       void updateSynthesizerState(int tick1, int tick2);
       void addCountInClicks();
+
+      int getPlayStartUtick();
 
       inline QQueue<NPlayEvent>* liveEventQueue() { return &_liveEventQueue; }
 
@@ -208,7 +240,8 @@ class Seq : public QObject, public Sequencer {
       void prevMeasure();
       void prevChord();
 
-      void collectEvents();
+      void collectEvents(int utick);
+      void ensureBufferAsync(int utick);
       void guiStop();
       void stopWait();
       void setLoopIn();
@@ -255,6 +288,8 @@ class Seq : public QObject, public Sequencer {
 
       void setInitialMillisecondTimestampWithLatency();
       unsigned getCurrentMillisecondTimestampWithLatency(unsigned framePos) const;
+
+      void preferencesChanged() { cachedPrefs.update(); }
       };
 
 extern Seq* seq;

@@ -39,7 +39,6 @@ namespace Ms {
 Rest::Rest(Score* s)
   : ChordRest(s)
       {
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       _beamMode  = Beam::Mode::NONE;
       _sym       = SymId::restQuarter;
       }
@@ -47,23 +46,26 @@ Rest::Rest(Score* s)
 Rest::Rest(Score* s, const TDuration& d)
   : ChordRest(s)
       {
-      setFlags(ElementFlag::MOVABLE | ElementFlag::SELECTABLE | ElementFlag::ON_STAFF);
       _beamMode  = Beam::Mode::NONE;
       _sym       = SymId::restQuarter;
       setDurationType(d);
       if (d.fraction().isValid())
-            setDuration(d.fraction());
+            setTicks(d.fraction());
       }
 
 Rest::Rest(const Rest& r, bool link)
    : ChordRest(r, link)
       {
-      if (link)
-            score()->undo(new Link(const_cast<Rest*>(&r), this));
+      if (link) {
+            score()->undo(new Link(this, const_cast<Rest*>(&r)));
+            setAutoplace(true);
+            }
       _gap     = r._gap;
       _sym     = r._sym;
       dotline  = r.dotline;
       _mmWidth = r._mmWidth;
+      for (NoteDot* dot : r._dots)
+            add(new NoteDot(*dot));
       }
 
 //---------------------------------------------------------
@@ -112,29 +114,18 @@ void Rest::draw(QPainter* painter) const
             x      -= symBbox(s).width() * .5;
             drawSymbols(s, painter, QPointF(x, y));
             }
-      else {
+      else
             drawSymbol(_sym, painter);
-            int dots = durationType().dots();
-            if (dots) {
-                  qreal y = dotline * _spatium * .5;
-                  qreal dnd = score()->styleP(StyleIdx::dotNoteDistance) * mag();
-                  qreal ddd = score()->styleP(StyleIdx::dotDotDistance) * mag();
-                  for (int i = 1; i <= dots; ++i) {
-                        qreal x = symWidth(_sym) + dnd + ddd * (i - 1);
-                        drawSymbol(SymId::augmentationDot, painter, QPointF(x, y));
-                        }
-                  }
-            }
       }
 
 //---------------------------------------------------------
-//   setUserOff, overriden from Element
+//   setOffset, overridden from Element
 //    (- raster vertical position in spatium units) -> no
 //    - half rests and whole rests outside the staff are
 //      replaced by special symbols with ledger lines
 //---------------------------------------------------------
 
-void Rest::setUserOff(const QPointF& o)
+void Rest::setOffset(const QPointF& o)
       {
       qreal _spatium = spatium();
       int line = lrint(o.y()/_spatium);
@@ -148,7 +139,7 @@ void Rest::setUserOff(const QPointF& o)
       else if (_sym == SymId::restHalfLegerLine && (line > -3 && line < 3))
             _sym = SymId::restHalf;
 
-      Element::setUserOff(o);
+      Element::setOffset(o);
       }
 
 //---------------------------------------------------------
@@ -157,6 +148,10 @@ void Rest::setUserOff(const QPointF& o)
 
 QRectF Rest::drag(EditData& ed)
       {
+      // don't allow drag for Measure Rests, because they can't be easily laid out in correct position while dragging
+      if (measure() && durationType().type() == TDuration::DurationType::V_MEASURE)
+            return QRectF();
+
       QPointF s(ed.delta);
       QRectF r(abbox());
 
@@ -164,7 +159,7 @@ QRectF Rest::drag(EditData& ed)
       static const qreal xDragRange = spatium() * 5;
       if (fabs(s.x()) > xDragRange)
             s.rx() = xDragRange * (s.x() < 0 ? -1.0 : 1.0);
-      setUserOff(QPointF(s.x(), s.y()));
+      setOffset(QPointF(s.x(), s.y()));
       layout();
       score()->rebuildBspTree();
       return abbox() | r;
@@ -176,16 +171,16 @@ QRectF Rest::drag(EditData& ed)
 
 bool Rest::acceptDrop(EditData& data) const
       {
-      Element* e = data.element;
+      Element* e = data.dropElement;
       ElementType type = e->type();
       if (
-            (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::SBEAM)
-         || (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::MBEAM)
-         || (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::NBEAM)
-         || (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::BEAM32)
-         || (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::BEAM64)
-         || (type == ElementType::ICON && static_cast<Icon*>(e)->iconType() == IconType::AUTOBEAM)
-         || (type == ElementType::ARTICULATION && static_cast<Articulation*>(e)->isFermata())
+            (type == ElementType::ICON && toIcon(e)->iconType() == IconType::SBEAM)
+         || (type == ElementType::ICON && toIcon(e)->iconType() == IconType::MBEAM)
+         || (type == ElementType::ICON && toIcon(e)->iconType() == IconType::NBEAM)
+         || (type == ElementType::ICON && toIcon(e)->iconType() == IconType::BEAM32)
+         || (type == ElementType::ICON && toIcon(e)->iconType() == IconType::BEAM64)
+         || (type == ElementType::ICON && toIcon(e)->iconType() == IconType::AUTOBEAM)
+         || (type == ElementType::FERMATA)
          || (type == ElementType::CLEF)
          || (type == ElementType::KEYSIG)
          || (type == ElementType::TIMESIG)
@@ -198,9 +193,9 @@ bool Rest::acceptDrop(EditData& data) const
          || (type == ElementType::STAFF_STATE)
          || (type == ElementType::INSTRUMENT_CHANGE)
          || (type == ElementType::DYNAMIC)
+         || (type == ElementType::HAIRPIN)
          || (type == ElementType::HARMONY)
          || (type == ElementType::TEMPO_TEXT)
-         || (type == ElementType::STAFF_TEXT)
          || (type == ElementType::REHEARSAL_MARK)
          || (type == ElementType::FRET_DIAGRAM)
          || (type == ElementType::TREMOLOBAR)
@@ -219,7 +214,7 @@ bool Rest::acceptDrop(EditData& data) const
 
 Element* Rest::drop(EditData& data)
       {
-      Element* e = data.element;
+      Element* e = data.dropElement;
       switch (e->type()) {
             case ElementType::ARTICULATION:
                   {
@@ -231,20 +226,19 @@ Element* Rest::drop(EditData& data)
                   }
                   return e;
 
-            case ElementType::CHORD:
-                  {
-                  Chord* c              = static_cast<Chord*>(e);
-                  Note* n               = c->upNote();
+            case ElementType::CHORD: {
+                  Chord* c = toChord(e);
+                  Note* n  = c->upNote();
                   Direction dir = c->stemDirection();
                   // score()->select(0, SelectType::SINGLE, 0);
                   NoteVal nval;
                   nval.pitch = n->pitch();
                   nval.headGroup = n->headGroup();
-                  Fraction d = score()->inputState().duration().fraction();
+                  Fraction d = score()->inputState().ticks();
                   if (!d.isZero()) {
                         Segment* seg = score()->setNoteRest(segment(), track(), nval, d, dir);
                         if (seg) {
-                              ChordRest* cr = static_cast<ChordRest*>(seg->element(track()));
+                              ChordRest* cr = toChordRest(seg->element(track()));
                               if (cr)
                                     score()->nextInputPos(cr, true);
                               }
@@ -284,7 +278,7 @@ SymId Rest::getSymbol(TDuration::DurationType type, int line, int lines, int* yo
             case TDuration::DurationType::V_BREVE:
                   return SymId::restDoubleWhole;
             case TDuration::DurationType::V_MEASURE:
-                  if (duration() >= Fraction(2, 1))
+                  if (ticks() >= Fraction(2, 1))
                         return SymId::restDoubleWhole;
                   // fall through
             case TDuration::DurationType::V_WHOLE:
@@ -348,24 +342,24 @@ void Rest::layout()
             e->layout();
       qreal _spatium = spatium();
       if (measure() && measure()->isMMRest()) {
-            _mmWidth = score()->styleP(StyleIdx::minMMRestWidth) * mag();
+            _mmWidth = score()->styleP(Sid::minMMRestWidth) * mag();
             // setbbox(QRectF(0.0, -_spatium, _mmWidth, 2.0 * _spatium));
             return;
             }
 
       rxpos() = 0.0;
       if (staff() && staff()->isTabStaff(tick())) {
-            StaffType* tab = staff()->staffType(tick());
+            const StaffType* tab = staff()->staffType(tick());
             // if rests are shown and note values are shown as duration symbols
             if (tab->showRests() && tab->genDurations()) {
                   TDuration::DurationType type = durationType().type();
                   int                     dots = durationType().dots();
                   // if rest is whole measure, convert into actual type and dot values
                   if (type == TDuration::DurationType::V_MEASURE) {
-                        int       ticks = measure()->ticks();
-                        TDuration dur   = TDuration(Fraction::fromTicks(ticks)).type();
-                        type = dur.type();
-                        dots = dur.dots();
+                        Fraction ticks = measure()->ticks();
+                        TDuration dur  = TDuration(ticks).type();
+                        type           = dur.type();
+                        dots           = dur.dots();
                         }
                   // symbol needed; if not exist, create, if exists, update duration
                   if (!_tabDur)
@@ -380,7 +374,7 @@ void Rest::layout()
                   return;
                   }
             // if no rests or no duration symbols, delete any dur. symbol and chain into standard staff mngmt
-            // this is to ensure horiz space is reserved for rest, even if they are not diplayed
+            // this is to ensure horiz space is reserved for rest, even if they are not displayed
             // Rest::draw() will skip their drawing, if not needed
             if(_tabDur) {
                   delete _tabDur;
@@ -390,9 +384,9 @@ void Rest::layout()
 
       dotline = Rest::getDotline(durationType().type());
 
-      qreal yOff     = userOff().y();
-      Staff* stf     = staff();
-      StaffType*  st = stf->staffType(tick());
+      qreal yOff       = offset().y();
+      const Staff* stf = staff();
+      const StaffType*  st = stf->staffType(tick());
       qreal lineDist = st ? st->lineDistance().val() : 1.0;
       int userLine   = yOff == 0.0 ? 0 : lrint(yOff / (lineDist * _spatium));
       int lines      = st ? st->lines() : 5;
@@ -400,10 +394,57 @@ void Rest::layout()
 
       int yo;
       _sym = getSymbol(durationType().type(), lineOffset / 2 + userLine, lines, &yo);
-      layoutArticulations();
       rypos() = (qreal(yo) + qreal(lineOffset) * .5) * lineDist * _spatium;
       setbbox(symBbox(_sym));
+      layoutDots();
       }
+
+//---------------------------------------------------------
+//   layout
+//---------------------------------------------------------
+
+void Rest::layoutDots()
+      {
+      checkDots();
+      qreal x = symWidth(_sym) + score()->styleP(Sid::dotNoteDistance) * mag();
+      qreal dx = score()->styleP(Sid::dotDotDistance) * mag();
+      qreal y = dotline * spatium() * .5;
+      for (NoteDot* dot : _dots) {
+            dot->layout();
+            dot->setPos(x, y);
+            x += dx;
+            }
+      }
+
+//---------------------------------------------------------
+//   checkDots
+//---------------------------------------------------------
+
+void Rest::checkDots()
+      {
+      int n = dots() - int(_dots.size());
+      for (int i = 0; i < n; ++i) {
+            NoteDot* dot = new NoteDot(score());
+            dot->setParent(this);
+            dot->setVisible(visible());
+            score()->undoAddElement(dot);
+            }
+      if (n < 0) {
+            for (int i = 0; i < -n; ++i)
+                  score()->undoRemoveElement(_dots.back());
+            }
+      }
+
+//---------------------------------------------------------
+//   dot
+//---------------------------------------------------------
+
+NoteDot* Rest::dot(int n)
+      {
+      checkDots();
+      return _dots[n];
+      }
+
 
 //---------------------------------------------------------
 //   getDotline
@@ -441,12 +482,14 @@ int Rest::computeLineOffset(int lines)
       if (offsetVoices && voice() == 0) {
             // do not offset voice 1 rest if there exists a matching invisible rest in voice 2;
             Element* e = s->element(track() + 1);
-            if (e && e->isRest() && (!e->visible() || toRest(e)->isGap())) {
-                  Rest* r = static_cast<Rest*>(e);
-                  if (r->globalDuration() == globalDuration()) {
+            if (e && e->isRest() && !e->visible() && !toRest(e)->isGap()) {
+                  Rest* r = toRest(e);
+                  if (r->globalTicks() == globalTicks()) {
                         offsetVoices = false;
                         }
                   }
+            else if (measure()->isOnlyDeletedRests(track() + 1, tick(), tick() + globalTicks()))
+                  offsetVoices = false;
             }
 #if 0
       if (offsetVoices && staff()->mergeMatchingRests()) {
@@ -464,7 +507,7 @@ int Rest::computeLineOffset(int lines)
                   if (v <= 1) {
                         // try to find match in other voice (1 or 2)
                         if (e && e->type() == ElementType::REST) {
-                              Rest* r = static_cast<Rest*>(e);
+                              Rest* r = toRest(e);
                               if (r->globalDuration() == globalDuration()) {
                                     matchFound = true;
                                     continue;
@@ -502,7 +545,7 @@ int Rest::computeLineOffset(int lines)
                         lineOffset = up ? -3 : 5;
                         break;
                   case TDuration::DurationType::V_MEASURE:
-                        if (duration() >= Fraction(2, 1))   // breve symbol
+                        if (ticks() >= Fraction(2, 1))   // breve symbol
                               lineOffset = up ? -3 : 5;
                         else
                               lineOffset = up ? -4 : 6;     // whole symbol
@@ -588,15 +631,6 @@ int Rest::computeLineOffset(int lines)
       }
 
 //---------------------------------------------------------
-//   centerX
-//---------------------------------------------------------
-
-qreal Rest::centerX() const
-      {
-      return symWidth(_sym) * .5;
-      }
-
-//---------------------------------------------------------
 //   upPos
 //---------------------------------------------------------
 
@@ -623,8 +657,21 @@ void Rest::scanElements(void* data, void (*func)(void*, Element*), bool all)
       ChordRest::scanElements(data, func, all);
       for (Element* e : el())
             e->scanElements(data, func, all);
+      for (NoteDot* dot : _dots)
+            dot->scanElements(data, func, all);
       if (!isGap())
             func(data, this);
+      }
+
+//---------------------------------------------------------
+//   setTrack
+//---------------------------------------------------------
+
+void Rest::setTrack(int val)
+      {
+      ChordRest::setTrack(val);
+      for (NoteDot* dot : _dots)
+            dot->setTrack(val);
       }
 
 //---------------------------------------------------------
@@ -633,7 +680,7 @@ void Rest::scanElements(void* data, void (*func)(void*, Element*), bool all)
 
 void Rest::reset()
       {
-      undoChangeProperty(P_ID::BEAM_MODE, int(Beam::Mode::NONE));
+      undoChangeProperty(Pid::BEAM_MODE, int(Beam::Mode::NONE));
       ChordRest::reset();
       }
 
@@ -645,7 +692,7 @@ qreal Rest::mag() const
       {
       qreal m = staff()->mag(tick());
       if (small())
-            m *= score()->styleD(StyleIdx::smallNoteMag);
+            m *= score()->styleD(Sid::smallNoteMag);
       return m;
       }
 
@@ -689,9 +736,9 @@ QPointF Rest::stemPosBeam() const
       {
       QPointF p(pagePos());
       if (_up)
-            p.ry() += bbox().top() + spatium() * 2;
+            p.ry() += bbox().top() + spatium() * 1.5;
       else
-            p.ry() += bbox().bottom() - spatium() * 2;
+            p.ry() += bbox().bottom() - spatium() * 1.5;
       return p;
       }
 
@@ -722,16 +769,17 @@ bool Rest::accent()
 
 void Rest::setAccent(bool flag)
       {
-      undoChangeProperty(P_ID::SMALL, flag);
+      undoChangeProperty(Pid::SMALL, flag);
       if (voice() % 2 == 0) {
             if (flag) {
                   qreal yOffset = -(bbox().bottom());
                   if (durationType() >= TDuration::DurationType::V_HALF)
                         yOffset -= staff()->spatium(tick()) * 0.5;
-                  undoChangeProperty(P_ID::USER_OFF, QPointF(0.0, yOffset));
+                  // undoChangeProperty(Pid::OFFSET, QPointF(0.0, yOffset));
+                  rypos() += yOffset;
                   }
             else {
-                  undoChangeProperty(P_ID::USER_OFF, QPointF());
+                  // undoChangeProperty(Pid::OFFSET, QPointF());  TODO::check
                   }
             }
       }
@@ -752,7 +800,9 @@ QString Rest::accessibleInfo() const
 
 QString Rest::screenReaderInfo() const
       {
-      QString voice = QObject::tr("Voice: %1").arg(QString::number(track() % VOICES + 1));
+      Measure* m = measure();
+      bool voices = m ? m->hasVoices(staffIdx()) : false;
+      QString voice = voices ? QObject::tr("Voice: %1").arg(QString::number(track() % VOICES + 1)) : "";
       return QString("%1 %2 %3").arg(Element::accessibleInfo()).arg(durationUserName()).arg(voice);
       }
 
@@ -766,6 +816,9 @@ void Rest::add(Element* e)
       e->setTrack(track());
 
       switch(e->type()) {
+            case ElementType::NOTEDOT:
+                  _dots.push_back(toNoteDot(e));
+                  break;
             case ElementType::SYMBOL:
             case ElementType::IMAGE:
                   el().push_back(e);
@@ -783,6 +836,9 @@ void Rest::add(Element* e)
 void Rest::remove(Element* e)
       {
       switch(e->type()) {
+            case ElementType::NOTEDOT:
+                  _dots.pop_back();
+                  break;
             case ElementType::SYMBOL:
             case ElementType::IMAGE:
                   if (!el().remove(e))
@@ -802,9 +858,19 @@ void Rest::write(XmlWriter& xml) const
       {
       if (_gap)
             return;
-      xml.stag(name());
+      writeBeam(xml);
+      xml.stag(this);
       ChordRest::writeProperties(xml);
       el().write(xml);
+      bool write_dots = false;
+      for (NoteDot* dot : _dots)
+            if (!dot->offset().isNull() || !dot->visible() || dot->color() != Qt::black || dot->visible() != visible()) {
+                  write_dots = true;
+                  break;
+                  }
+      if (write_dots)
+            for (NoteDot* dot: _dots)
+                  dot->write(xml);
       xml.etag();
       }
 
@@ -832,6 +898,11 @@ void Rest::read(XmlReader& e)
                         add(image);
                         }
                   }
+            else if (tag == "NoteDot") {
+                  NoteDot* dot = new NoteDot(score());
+                  dot->read(e);
+                  add(dot);
+                  }
             else if (ChordRest::readProperties(e))
                   ;
             else
@@ -840,13 +911,26 @@ void Rest::read(XmlReader& e)
       }
 
 //---------------------------------------------------------
+//   localSpatiumChanged
+//---------------------------------------------------------
+
+void Rest::localSpatiumChanged(qreal oldValue, qreal newValue)
+      {
+      ChordRest::localSpatiumChanged(oldValue, newValue);
+      for (Element* e : _dots)
+            e->localSpatiumChanged(oldValue, newValue);
+      for (Element* e : el())
+            e->localSpatiumChanged(oldValue, newValue);
+      }
+
+//---------------------------------------------------------
 //   getProperty
 //---------------------------------------------------------
 
-QVariant Rest::getProperty(P_ID propertyId) const
+QVariant Rest::getProperty(Pid propertyId) const
       {
       switch (propertyId) {
-            case P_ID::GAP:
+            case Pid::GAP:
                   return _gap;
             default:
                   return ChordRest::getProperty(propertyId);
@@ -857,10 +941,10 @@ QVariant Rest::getProperty(P_ID propertyId) const
 //   propertyDefault
 //---------------------------------------------------------
 
-QVariant Rest::propertyDefault(P_ID propertyId) const
+QVariant Rest::propertyDefault(Pid propertyId) const
       {
       switch (propertyId) {
-            case P_ID::GAP:
+            case Pid::GAP:
                   return false;
             default:
                   return ChordRest::propertyDefault(propertyId);
@@ -871,26 +955,40 @@ QVariant Rest::propertyDefault(P_ID propertyId) const
 //   setProperty
 //---------------------------------------------------------
 
-bool Rest::setProperty(P_ID propertyId, const QVariant& v)
+bool Rest::setProperty(Pid propertyId, const QVariant& v)
       {
       switch (propertyId) {
-            case P_ID::GAP:
+            case Pid::GAP:
                   _gap = v.toBool();
-                  score()->setLayout(tick());
+                  triggerLayout();
                   break;
-
-            case P_ID::USER_OFF:
+            case Pid::VISIBLE:
+                  setVisible(v.toBool());
+                  triggerLayout();
+                  break;
+            case Pid::OFFSET:
                   score()->addRefresh(canvasBoundingRect());
-                  setUserOff(v.toPointF());
+                  setOffset(v.toPointF());
                   layout();
                   score()->addRefresh(canvasBoundingRect());
-                  if (beam())
-                        score()->setLayout(tick());
+                  if (measure() && durationType().type() == TDuration::DurationType::V_MEASURE)
+                         measure()->triggerLayout();
+                  triggerLayout();
                   break;
             default:
                   return ChordRest::setProperty(propertyId, v);
             }
       return true;
+      }
+
+//---------------------------------------------------------
+//   undoChangeDotsVisible
+//---------------------------------------------------------
+
+void Rest::undoChangeDotsVisible(bool v)
+      {
+      for (NoteDot* dot : _dots)
+            dot->undoChangeProperty(Pid::VISIBLE, QVariant(v));
       }
 
 //---------------------------------------------------------
@@ -934,7 +1032,17 @@ Shape Rest::shape() const
                   shape.add(r);
                   }
             else
+#ifndef NDEBUG
+                  shape.add(bbox(), name());
+#else
                   shape.add(bbox());
+#endif
+            for (NoteDot* dot : _dots)
+                  shape.add(symBbox(SymId::augmentationDot).translated(dot->pos()));
+            }
+      for (Element* e : el()) {
+            if (e->addToSkyline())
+                  shape.add(e->shape().translated(e->pos()));
             }
       return shape;
       }

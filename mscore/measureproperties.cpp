@@ -1,7 +1,6 @@
 //=============================================================================
 //  MusE Score
 //  Linux Music Score Editor
-//  $Id: measureproperties.cpp 5628 2012-05-15 07:46:43Z wschweer $
 //
 //  Copyright (C) 2007 Werner Schweer and others
 //
@@ -27,6 +26,7 @@
 #include "libmscore/range.h"
 #include "musescore.h"
 #include "timeline.h"
+#include "icons.h"
 
 namespace Ms {
 
@@ -47,6 +47,9 @@ MeasureProperties::MeasureProperties(Measure* _m, QWidget* parent)
       connect(buttonBox, SIGNAL(clicked(QAbstractButton*)), this, SLOT(bboxClicked(QAbstractButton*)));
       connect(nextButton, SIGNAL(clicked()), SLOT(gotoNextMeasure()));
       connect(previousButton, SIGNAL(clicked()), SLOT(gotoPreviousMeasure()));
+
+      nextButton->setIcon(*icons[int(Icons::goNext_ICON)]);
+      previousButton->setIcon(*icons[int(Icons::goPrevious_ICON)]);
 
       nextButton->setEnabled(_m->nextMeasure() != 0);
       previousButton->setEnabled(_m->prevMeasure() != 0);
@@ -121,8 +124,8 @@ void MeasureProperties::setMeasure(Measure* _m)
       m->score()->deselectAll();
       m->score()->select(m, SelectType::ADD, 0);
 
-      actualZ->setValue(m->len().numerator());
-      int index = actualN->findText(QString::number(m->len().denominator()));
+      actualZ->setValue(m->ticks().numerator());
+      int index = actualN->findText(QString::number(m->ticks().denominator()));
       if (index == -1)
             index = 2;
       actualN->setCurrentIndex(index);
@@ -159,7 +162,7 @@ void MeasureProperties::setMeasure(Measure* _m)
 
             item = new QTableWidgetItem(tr("stemless"));
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
-            item->setCheckState(m->slashStyle(staffIdx) ? Qt::Checked : Qt::Unchecked);
+            item->setCheckState(m->stemless(staffIdx) ? Qt::Checked : Qt::Unchecked);
             staves->setItem(staffIdx, 2, item);
             }
       }
@@ -201,10 +204,10 @@ bool MeasureProperties::visible(int staffIdx)
       }
 
 //---------------------------------------------------------
-//   slashStyle
+//   stemless
 //---------------------------------------------------------
 
-bool MeasureProperties::slashStyle(int staffIdx)
+bool MeasureProperties::stemless(int staffIdx)
       {
       QTableWidgetItem* item = staves->item(staffIdx, 2);
       return item->checkState() == Qt::Checked;
@@ -245,21 +248,24 @@ void MeasureProperties::apply()
       {
       Score* score = m->score();
 
+      bool propertiesChanged = false;
       for (int staffIdx = 0; staffIdx < score->nstaves(); ++staffIdx) {
             bool v = visible(staffIdx);
-            bool s = slashStyle(staffIdx);
-            if (m->visible(staffIdx) != v || m->slashStyle(staffIdx) != s)
+            bool s = stemless(staffIdx);
+            if (m->visible(staffIdx) != v || m->stemless(staffIdx) != s) {
                   score->undo(new ChangeMStaffProperties(m, staffIdx, v, s));
+                  propertiesChanged = true;
+                  }
             }
 
-      m->undoChangeProperty(P_ID::REPEAT_COUNT, repeatCount());
-      m->undoChangeProperty(P_ID::BREAK_MMR, breakMultiMeasureRest->isChecked());
-      m->undoChangeProperty(P_ID::USER_STRETCH, layoutStretch->value());
-      m->undoChangeProperty(P_ID::MEASURE_NUMBER_MODE, measureNumberMode->currentIndex());
-      m->undoChangeProperty(P_ID::NO_OFFSET, measureNumberOffset->value());
-      m->undoChangeProperty(P_ID::IRREGULAR, isIrregular());
+      m->undoChangeProperty(Pid::REPEAT_COUNT, repeatCount());
+      m->undoChangeProperty(Pid::BREAK_MMR, breakMultiMeasureRest->isChecked());
+      m->undoChangeProperty(Pid::USER_STRETCH, layoutStretch->value());
+      m->undoChangeProperty(Pid::MEASURE_NUMBER_MODE, measureNumberMode->currentIndex());
+      m->undoChangeProperty(Pid::NO_OFFSET, measureNumberOffset->value());
+      m->undoChangeProperty(Pid::IRREGULAR, isIrregular());
 
-      if (m->len() != len()) {
+      if (m->ticks() != len()) {
             ScoreRange range;
             range.read(m->first(), m->last());
             m->adjustToLen(len());
@@ -268,12 +274,17 @@ void MeasureProperties::apply()
             else if (!MScore::noGui) {
                   QMessageBox::warning(0,
                      QT_TRANSLATE_NOOP("MeasureProperties", "MuseScore"),
-                     QT_TRANSLATE_NOOP("MeasureProperties", "cannot change measure length:\n"
+                     QT_TRANSLATE_NOOP("MeasureProperties", "Cannot change measure length:\n"
                      "tuplet would cross measure")
                      );
                   }
 #endif
             }
+
+      if (propertiesChanged) {
+            m->triggerLayout();
+            }
+
       score->select(m, SelectType::SINGLE, 0);
       score->update();
       mscore->timeline()->updateGrid();

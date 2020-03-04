@@ -16,8 +16,8 @@
 #include "inspectorBase.h"
 #include "inspectorElementBase.h"
 #include "inspectorTextBase.h"
-#include "ui_inspector_bend.h"
 #include "ui_inspector_break.h"
+#include "ui_inspector_sectionbreak.h"
 #include "ui_inspector_stafftypechange.h"
 #include "ui_inspector_vbox.h"
 #include "ui_inspector_tbox.h"
@@ -40,11 +40,13 @@
 #include "ui_inspector_slur.h"
 #include "ui_inspector_empty.h"
 #include "ui_inspector_text.h"
-#include "ui_inspector_fret.h"
+// #include "ui_inspector_fret.h"
 #include "ui_inspector_tremolo.h"
 #include "ui_inspector_caesura.h"
 #include "ui_inspector_bracket.h"
 #include "ui_inspector_iname.h"
+#include "ui_inspector_fermata.h"
+#include "ui_inspector_stem.h"
 
 namespace Ms {
 
@@ -80,6 +82,18 @@ class InspectorBreak : public InspectorBase {
       };
 
 //---------------------------------------------------------
+//   InspectorSectionBreak
+//---------------------------------------------------------
+
+class InspectorSectionBreak : public InspectorBase {
+      Q_OBJECT
+      Ui::InspectorSectionBreak scb;
+
+   public:
+      InspectorSectionBreak(QWidget* parent);
+      };
+
+//---------------------------------------------------------
 //   InspectorStaffTypeChange
 //---------------------------------------------------------
 
@@ -89,6 +103,7 @@ class InspectorStaffTypeChange : public InspectorBase {
 
    public:
       InspectorStaffTypeChange(QWidget* parent);
+      virtual void setElement() override;
       };
 
 //---------------------------------------------------------
@@ -135,8 +150,25 @@ class InspectorArticulation : public InspectorElementBase {
       Q_OBJECT
       Ui::InspectorArticulation ar;
 
+   private slots:
+      void propertiesClicked();
+
    public:
       InspectorArticulation(QWidget* parent);
+      virtual void setElement() override;
+      };
+
+//---------------------------------------------------------
+//   InspectorFermata
+//---------------------------------------------------------
+
+class InspectorFermata : public InspectorElementBase {
+      Q_OBJECT
+      Ui::InspectorFermata f;
+
+   public:
+      InspectorFermata(QWidget* parent);
+      virtual void setElement() override;
       };
 
 //---------------------------------------------------------
@@ -161,9 +193,19 @@ class InspectorRest : public InspectorElementBase {
       Ui::InspectorSegment s;
       Ui::InspectorRest    r;
 
-      QToolButton* tuplet;
+      QPushButton* dot1;
+      QPushButton* dot2;
+      QPushButton* dot3;
+      QPushButton* dot4;
+      QPushButton* tuplet;
+
+      void dotClicked(int n);
 
    private slots:
+      void dot1Clicked();
+      void dot2Clicked();
+      void dot3Clicked();
+      void dot4Clicked();
       void tupletClicked();
 
    public:
@@ -174,7 +216,6 @@ class InspectorRest : public InspectorElementBase {
 //---------------------------------------------------------
 //   InspectorClef
 //---------------------------------------------------------
-
 
 class InspectorClef : public InspectorElementBase {
       Q_OBJECT
@@ -192,6 +233,20 @@ class InspectorClef : public InspectorElementBase {
       };
 
 //---------------------------------------------------------
+//   InspectorStem
+//---------------------------------------------------------
+
+class InspectorStem : public InspectorElementBase {
+      Q_OBJECT
+
+      Ui::InspectorStem s;
+
+   public:
+      InspectorStem(QWidget* parent);
+//      virtual void setElement() override;
+      };
+
+//---------------------------------------------------------
 //   InspectorTimeSig
 //---------------------------------------------------------
 
@@ -200,6 +255,9 @@ class InspectorTimeSig : public InspectorElementBase {
 
       Ui::InspectorSegment s;
       Ui::InspectorTimeSig t;
+
+   private slots:
+      void propertiesClicked();
 
    public:
       InspectorTimeSig(QWidget* parent);
@@ -248,35 +306,16 @@ class InspectorAccidental : public InspectorElementBase {
       };
 
 //---------------------------------------------------------
-//   InspectorBend
+//   InspectorTremolo
 //---------------------------------------------------------
 
-class InspectorBend : public InspectorElementBase {
+class InspectorTremolo : public InspectorElementBase {
       Q_OBJECT
 
-      Ui::InspectorBend g;
-
-   private slots:
-      void propertiesClicked();
+      Ui::InspectorTremolo g;
 
    public:
-      InspectorBend(QWidget* parent);
-      };
-
-//---------------------------------------------------------
-//   InspectorTremoloBar
-//---------------------------------------------------------
-
-class InspectorTremoloBar : public InspectorElementBase {
-      Q_OBJECT
-
-      Ui::InspectorTremoloBar g;
-
-   private slots:
-      void propertiesClicked();
-
-   public:
-      InspectorTremoloBar(QWidget* parent);
+      InspectorTremolo(QWidget* parent);
       };
 
 //---------------------------------------------------------
@@ -303,7 +342,6 @@ class InspectorLyric : public InspectorTextBase {
       Ui::InspectorLyric l;
 
    private slots:
-      virtual void valueChanged(int idx) override;
 
    public:
       InspectorLyric(QWidget* parent);
@@ -318,8 +356,12 @@ class InspectorStaffText : public InspectorTextBase {
 
       Ui::InspectorStaffText s;
 
+   private slots:
+      void propertiesClicked();
+
    public:
       InspectorStaffText(QWidget* parent);
+      virtual void setElement() override;
       };
 
 //---------------------------------------------------------
@@ -335,6 +377,7 @@ class Inspector : public QDockWidget {
       bool _inspectorEdit;    // set to true when an edit originates from
                               // within the inspector itself
       Element* oe;
+      bool oSameTypes;
 
    public slots:
       void update();
@@ -350,6 +393,8 @@ class Inspector : public QDockWidget {
       Element* element() const;
       const QList<Element*>* el() const;
       void setInspectorEdit(bool val)     { _inspectorEdit = val;  }
+
+      friend class InspectorScriptEntry;
       };
 
 //---------------------------------------------------------
@@ -417,6 +462,8 @@ class InspectorEmpty : public InspectorBase {
       InspectorEmpty(QWidget* parent);
       virtual QSize sizeHint() const override;
       };
+
+extern void populatePlacement(QComboBox*);
 
 } // namespace Ms
 #endif

@@ -38,9 +38,7 @@ enum class TimeSigType : char {
 ///    This class represents a time signature.
 //---------------------------------------------------------------------------------------
 
-class TimeSig : public Element {
-      Q_GADGET
-
+class TimeSig final : public Element {
       QString _numeratorString;     // calculated from actualSig() if !customText
       QString _denominatorString;
 
@@ -59,9 +57,6 @@ class TimeSig : public Element {
       TimeSigType _timeSigType;
       bool _showCourtesySig;
       bool _largeParentheses;
-      PropertyFlags scaleStyle;
-
-      void layout1();
 
    public:
       TimeSig(Score* = 0);
@@ -75,12 +70,14 @@ class TimeSig : public Element {
       TimeSigType timeSigType() const    { return _timeSigType; }
 
       bool operator==(const TimeSig&) const;
+      bool operator!=(const TimeSig& ts) const { return !(*this == ts); }
 
       virtual qreal mag() const override;
       virtual void draw(QPainter*) const override;
       virtual void write(XmlWriter& xml) const override;
       virtual void read(XmlReader&) override;
       virtual void layout() override;
+      virtual Shape shape() const override;
 
       Fraction sig() const               { return _sig; }
       void setSig(const Fraction& f, TimeSigType st = TimeSigType::NORMAL);
@@ -114,12 +111,10 @@ class TimeSig : public Element {
 
       void setFrom(const TimeSig*);
 
-      virtual QVariant getProperty(P_ID propertyId) const override;
-      virtual bool setProperty(P_ID propertyId, const QVariant&) override;
-      virtual QVariant propertyDefault(P_ID id) const override;
-      virtual StyleIdx getPropertyStyle(P_ID id) const override;
-      virtual void styleChanged() override;
-      virtual PropertyFlags propertyFlags(P_ID id) const override;
+      virtual QVariant getProperty(Pid propertyId) const override;
+      virtual bool setProperty(Pid propertyId, const QVariant&) override;
+      virtual QVariant propertyDefault(Pid id) const override;
+      virtual Pid propertyId(const QStringRef& xmlName) const override;
 
       const Groups& groups() const    { return _groups; }
       void setGroups(const Groups& e) { _groups = e; }

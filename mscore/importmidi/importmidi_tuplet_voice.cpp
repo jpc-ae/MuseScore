@@ -16,8 +16,8 @@ namespace MidiTuplet {
 
 int tupletVoiceLimit()
       {
-      const auto &opers = preferences.midiImportOperations.data()->trackOpers;
-      const int currentTrack = preferences.midiImportOperations.currentTrack();
+      const auto &opers = midiImportOperations.data()->trackOpers;
+      const int currentTrack = midiImportOperations.currentTrack();
       const int allowedVoices = MidiVoice::toIntVoiceCount(opers.maxVoiceCount.value(currentTrack));
 
       Q_ASSERT_X(allowedVoices <= VOICES,
@@ -856,7 +856,7 @@ void assignVoices(
       if (tupletVoiceLimit() == 1) {
             bool excluded = excludeExtraVoiceTuplets(tuplets, nonTuplets, backTiedTuplets,
                                                      chords, basicQuant, barStart, barIndex);
-            if (excluded) {         // to exlude tuplet intervals - rebuild all intervals
+            if (excluded) {         // to exclude tuplet intervals - rebuild all intervals
                   tupletIntervals.clear();
                   for (const auto &tuplet: tuplets) {
                         const int voice = tuplet.chords.begin()->second->second.voice;

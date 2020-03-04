@@ -1,7 +1,6 @@
 //=============================================================================
 //  MuseScore
 //  Linux Music Score Editor
-//  $Id: icons.cpp 5246 2012-01-24 18:48:55Z wschweer $
 //
 //  Copyright (C) 2002-2007 Werner Schweer and others
 //
@@ -86,6 +85,7 @@ static const char* iconNames[] = {
       "document-new.svg",
       "document-save.svg",
       "document-save-as.svg",
+      "document-save-online.svg",
       "mscore.png",
       "acciaccatura.svg",
       "appoggiatura.svg",
@@ -133,6 +133,7 @@ static const char* iconNames[] = {
       "frame-fretboard.svg",
       "measure.svg",
       "object-select.svg",
+      "mscz-icon.svg",
       "help-contents.svg",
       "go-home.svg",
       "go-previous.svg",
@@ -155,7 +156,11 @@ static const char* iconNames[] = {
       "edit-reset.svg",
       "window-close.svg",
       "arrow_up.svg",
-      "arrow_down.svg"
+      "arrow_down.svg",
+      "mail.svg",
+      "bug.svg",
+      "note_timewise.svg",
+      "arrowsMoveToTop.svg"
       };
 
 //---------------------------------------------------------
@@ -174,8 +179,8 @@ void genIcons()
             }
 
       static const char* vtext[VOICES] = { "1","2","3","4" };
-      int iw = preferences.iconHeight * 2 / 3; // 16;
-      int ih = preferences.iconHeight;   // 24;
+      int iw = preferences.getInt(PREF_UI_THEME_ICONHEIGHT) * 2 / 3; // 16;
+      int ih = preferences.getInt(PREF_UI_THEME_ICONHEIGHT);   // 24;
       for (int i = 0; i < VOICES; ++i) {
             icons[int(Icons::voice1_ICON) + i] = new QIcon;
             QPixmap image(iw, ih);

@@ -1,7 +1,6 @@
 //=============================================================================
 //  MuseScore
 //  Music Composition & Notation
-//  $Id:$
 //
 //  Copyright (C) 2013 Werner Schweer
 //
@@ -12,9 +11,7 @@
 //=============================================================================
 
 #include "inspectorGlissando.h"
-#include "musescore.h"
 #include "libmscore/glissando.h"
-#include "libmscore/score.h"
 
 namespace Ms {
 
@@ -28,16 +25,35 @@ InspectorGlissando::InspectorGlissando(QWidget* parent)
       g.setupUi(addWidget());
 
       const std::vector<InspectorItem> iiList = {
-            { P_ID::GLISS_TYPE,      0, g.type,           g.resetType           },
-            { P_ID::GLISS_TEXT,      0, g.text,           g.resetText           },
-            { P_ID::GLISS_SHOW_TEXT, 0, g.showText,       g.resetShowText       },
-            { P_ID::GLISSANDO_STYLE, 0, g.glissandoStyle, g.resetGlissandoStyle },
-            { P_ID::PLAY,            0, g.playGlissando,  g.resetPlayGlissando  }
+            { Pid::GLISS_TYPE,      0, g.type,           g.resetType           },
+            { Pid::GLISS_TEXT,      0, g.text,           g.resetText           },
+            { Pid::GLISS_SHOW_TEXT, 0, g.showText,       g.resetShowText       },
+            { Pid::GLISSANDO_STYLE, 0, g.glissandoStyle, g.resetGlissandoStyle },
+            { Pid::PLAY,            0, g.playGlissando,  g.resetPlayGlissando  },
+            { Pid::FONT_FACE,       0, g.fontFace,       g.resetFontFace       },
+            { Pid::FONT_SIZE,       0, g.fontSize,       g.resetFontSize       },
+            { Pid::FONT_STYLE,      0, g.fontStyle,      g.resetFontStyle      },
             };
       const std::vector<InspectorPanel> ppList = {
             { g.title, g.panel }
             };
       mapSignals(iiList, ppList);
+      }
+
+//---------------------------------------------------------
+//   setElement
+//---------------------------------------------------------
+
+void InspectorGlissando::setElement()
+      {
+      InspectorElementBase::setElement();
+      if (!g.playGlissando->isChecked()) {
+            g.labelGlissandoStyle->setEnabled(false);
+            g.glissandoStyle->setEnabled(false);
+            g.resetGlissandoStyle->setEnabled(false);
+            }
+      if (!g.showText->isChecked())
+            g.textWidget->setVisible(false);
       }
 }
 

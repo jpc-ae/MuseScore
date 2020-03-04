@@ -1,7 +1,6 @@
 //=============================================================================
 //  MuseScore
 //  Linux Music Score Editor
-//  $Id: select.cpp -1   $
 //
 //  Copyright (C) 2002-2011 Werner Schweer and others
 //
@@ -48,8 +47,10 @@ SelectNoteDialog::SelectNoteDialog(const Note* _n, QWidget* parent)
       n = _n;
       notehead->setText(NoteHead::group2userName(n->headGroup()));
       pitch->setText(n->tpcUserName());
+      string->setText(QString::number(n->string()+1));
       type->setText(n->noteTypeUserName());
-      duration->setText(n->chord()->durationUserName());
+      durationType->setText(tr("%1 Note").arg(n->chord()->durationType().durationTypeUserName()));
+      durationTicks->setText(n->chord()->durationUserName());
       name->setText(tpc2name(n->tpc(), NoteSpellingType::STANDARD, NoteCaseType::AUTO, false));
       inSelection->setEnabled(n->score()->selection().isRange());
       MuseScore::restoreGeometry(this);
@@ -65,12 +66,19 @@ void SelectNoteDialog::setPattern(NotePattern* p)
             p->notehead = n->headGroup();
       if (samePitch->isChecked())
             p->pitch = n->pitch();
+      if (sameString->isChecked())
+            p->string = n->string();
       if (sameName->isChecked())
             p->tpc = n->tpc();
       if (sameType->isChecked())
             p->type = n->noteType();
-      if (sameDuration->isChecked())
-            p->duration = n->chord()->actualDurationType();
+      if (sameDurationType->isChecked())
+            p->durationType = n->chord()->actualDurationType();
+
+      if (sameDurationTicks->isChecked())
+            p->durationTicks = n->chord()->actualTicks();
+      else
+            p->durationTicks = Fraction(-1,1);
 
       if (sameStaff->isChecked()) {
             p->staffStart = n->staffIdx();

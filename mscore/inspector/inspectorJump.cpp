@@ -11,9 +11,7 @@
 //=============================================================================
 
 #include "inspectorJump.h"
-#include "musescore.h"
 #include "libmscore/jump.h"
-#include "libmscore/score.h"
 
 namespace Ms {
 
@@ -27,10 +25,10 @@ InspectorJump::InspectorJump(QWidget* parent)
       j.setupUi(addWidget());
 
       const std::vector<InspectorItem> iiList = {
-            { P_ID::JUMP_TO,            0, j.jumpTo,      0                  },
-            { P_ID::PLAY_UNTIL,         0, j.playUntil,   0                  },
-            { P_ID::CONTINUE_AT,        0, j.continueAt,  0                  },
-            { P_ID::PLAY_REPEATS,       0, j.playRepeats, j.resetPlayRepeats }
+            { Pid::JUMP_TO,            0, j.jumpTo,      0                  },
+            { Pid::PLAY_UNTIL,         0, j.playUntil,   0                  },
+            { Pid::CONTINUE_AT,        0, j.continueAt,  0                  },
+            { Pid::PLAY_REPEATS,       0, j.playRepeats, j.resetPlayRepeats }
             };
       const std::vector<InspectorPanel> ppList = {
             { t.title, t.panel },
@@ -38,7 +36,6 @@ InspectorJump::InspectorJump(QWidget* parent)
             };
 
       mapSignals(iiList, ppList);
-      connect(t.resetToStyle, SIGNAL(clicked()), SLOT(resetToStyle()));
       }
 
 }

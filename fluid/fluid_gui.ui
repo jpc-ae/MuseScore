@@ -23,7 +23,7 @@
    <item row="0" column="0">
     <widget class="QListWidget" name="soundFonts">
      <property name="accessibleName">
-      <string>Sound Fonts</string>
+      <string>SoundFonts</string>
      </property>
     </widget>
    </item>
@@ -32,6 +32,32 @@
      <property name="spacing">
       <number>0</number>
      </property>
+     <item>
+       <widget class="QToolButton" name="soundFontTop">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::TabFocus</enum>
+        </property>
+        <property name="toolTip">
+         <string>Move SoundFont to Top</string>
+        </property>
+        <property name="accessibleDescription">
+         <string/>
+        </property>
+        <property name="text">
+         <string notr="true"/>
+        </property>
+        <property name="icon">
+         <iconset resource="../mscore/musescore.qrc">
+          <normaloff>:/data/icons/arrowsMoveToTop.svg</normaloff>:/data/icons/arrowsMoveToTop.svg</iconset>
+        </property>
+       </widget>
+      </item>
      <item>
       <widget class="QToolButton" name="soundFontUp">
        <property name="sizePolicy">
@@ -44,7 +70,7 @@
         <enum>Qt::TabFocus</enum>
        </property>
        <property name="toolTip">
-        <string>Move Soundfont up</string>
+        <string>Move SoundFont up</string>
        </property>
        <property name="accessibleDescription">
         <string/>
@@ -70,7 +96,7 @@
         <enum>Qt::TabFocus</enum>
        </property>
        <property name="toolTip">
-        <string>Move Soundfont down</string>
+        <string>Move SoundFont down</string>
        </property>
        <property name="text">
         <string notr="true"/>

@@ -11,9 +11,7 @@
 //=============================================================================
 
 #include "scaleSelect.h"
-#include "libmscore/elementlayout.h"
-#include "icons.h"
-#include "musescore.h"
+#include "libmscore/types.h"
 
 namespace Ms {
 

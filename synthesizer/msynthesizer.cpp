@@ -29,6 +29,7 @@ extern QString dataPath;
 MasterSynthesizer::MasterSynthesizer()
    : QObject(0)
       {
+      defaultGainAsDecibels = convertGainToDecibels(defaultGain);
       }
 
 //---------------------------------------------------------
@@ -45,14 +46,17 @@ void MasterSynthesizer::init()
             setState(defaultState);
             return;
             }
-      XmlReader e(0, &f);
+      XmlReader e(&f);
       while (e.readNextStartElement()) {
             if (e.name() == "Synthesizer")
                   state.read(e);
             else
                   e.unknown();
             }
-      setState(state);
+      if (!setState(state)) {
+            f.remove();
+            setState(defaultState);
+            }
       }
 
 //---------------------------------------------------------
@@ -134,6 +138,21 @@ QList<MidiPatch*> MasterSynthesizer::getPatchInfo() const
       }
 
 //---------------------------------------------------------
+//   getPatchInfo
+//---------------------------------------------------------
+
+MidiPatch* MasterSynthesizer::getPatchInfo(QString synti, int bank, int program)
+      {
+      for (Synthesizer* s : _synthesizer) {
+            for (MidiPatch* p: s->getPatchInfo()) {
+                  if (p->synti == synti && p->bank == bank && p->prog == program)
+                        return p;
+                  }
+            }
+      return nullptr;
+      }
+
+//---------------------------------------------------------
 //   allSoundsOff
 //---------------------------------------------------------
 
@@ -196,8 +215,12 @@ void MasterSynthesizer::setEffect(int ab, int idx)
             return;
             }
       lock2 = true;
-      while (lock1)
-            sleep(1);
+      while(lock1)
+#if (!defined (_MSCVER) && !defined (_MSC_VER))
+         sleep(1);
+#else
+         Sleep(1000);      // MS-equivalent function, time in ms instead of seconds.
+#endif
       _effect[ab] = _effectList[ab][idx];
       lock2 = false;
       }
@@ -317,6 +340,12 @@ bool MasterSynthesizer::setState(const SynthesizerState& ss)
                               case 3:
                                     setMasterTuning(v.data.toDouble());
                                     break;
+                              case 4:
+                                    setDynamicsMethod(v.data.toInt());
+                                    break;
+                              case 5:
+                                    setCcToUseIndex(v.data.toInt());
+                                    break;
                               default:
                                     qDebug("MasterSynthesizer::setState: unknown master id <%d>", v.id);
                               }
@@ -354,6 +383,8 @@ SynthesizerState MasterSynthesizer::state() const
       g.push_back(IdValue(1, QString("%1").arg(_effect[1] ? _effect[1]->name() : "NoEffect")));
       g.push_back(IdValue(2, QString("%1").arg(gain())));
       g.push_back(IdValue(3, QString("%1").arg(masterTuning())));
+      g.push_back(IdValue(4, QString("%1").arg(dynamicsMethod())));
+      g.push_back(IdValue(5, QString("%1").arg(ccToUseIndex())));
       ss.push_back(g);
       for (Synthesizer* s : _synthesizer)
             ss.push_back(s->state());
@@ -362,6 +393,26 @@ SynthesizerState MasterSynthesizer::state() const
       if (_effect[1])
             ss.push_back(_effect[1]->state());
       return ss;
+      }
+
+//---------------------------------------------------------
+//   storeState
+//---------------------------------------------------------
+
+bool MasterSynthesizer::storeState()
+      {
+      QString s(dataPath + "/synthesizer.xml");
+      QFile f(s);
+      if (!f.open(QIODevice::WriteOnly)) {
+            qDebug("cannot write synthesizer settings <%s>", qPrintable(s));
+            return false;
+            }
+      XmlWriter xml(0, &f);
+      xml.header();
+      // force the write, since the msynth state is created when state() is called and so will
+      // automatically have _isDefault = true, when in fact we need to write the state here, default or not
+      state().write(xml, true);
+      return true;
       }
 
 //---------------------------------------------------------
@@ -376,6 +427,39 @@ void MasterSynthesizer::setGain(float f)
             }
       }
 
+
+//---------------------------------------------------------
+//   setGainAsDecibels
+//---------------------------------------------------------
+
+void MasterSynthesizer::setGainAsDecibels(float decibelValue)
+      {
+      if (decibelValue == minGainAsDecibels)
+            setGain(MUTE);
+      else
+            setGain(pow(10, ((decibelValue + N) / N )));
+      }
+
+//---------------------------------------------------------
+//   convertGainToDecibels
+//---------------------------------------------------------
+
+float MasterSynthesizer::convertGainToDecibels(float gain) const
+      {
+      if (gain == MUTE)
+            return minGainAsDecibels; // return a usable value instead of -∞
+      return ((N * std::log10(gain)) - N);
+      }
+
+//---------------------------------------------------------
+//   gainAsDecibels
+//---------------------------------------------------------
+
+float MasterSynthesizer::gainAsDecibels() const
+      {
+      return convertGainToDecibels(_gain);
+      }
+
 //---------------------------------------------------------
 //   setMasterTuning
 //---------------------------------------------------------
@@ -386,5 +470,4 @@ void MasterSynthesizer::setMasterTuning(double val)
       for (Synthesizer* s : _synthesizer)
             s->setMasterTuning(_masterTuning);
       }
-}
-
+} // namespace Ms

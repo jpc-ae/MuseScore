@@ -1,7 +1,6 @@
 //=============================================================================
 //  MuseScore
 //  Linux Music Score Editor
-//  $Id: drumtools.cpp
 //
 //  Copyright (C) 2010-2016 Werner Schweer and others
 //
@@ -50,25 +49,37 @@ DrumTools::DrumTools(QWidget* parent)
 
       QWidget* w = new QWidget(this);
       w->setSizePolicy(QSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed));
+      w->setMaximumHeight(100 * Palette::guiMag());
       QHBoxLayout* layout = new QHBoxLayout;
       w->setLayout(layout);
 
       QVBoxLayout* layout1 = new QVBoxLayout;
+      layout1->setSpacing(6);
+      pitchName = new QLabel;
+      pitchName->setAlignment(Qt::AlignCenter);
+      pitchName->setWordWrap(true);
+      pitchName->setContentsMargins(25, 0, 25, 0);
+      layout1->addWidget(pitchName);
+
+      QHBoxLayout* buttonLayout = new QHBoxLayout;
+      buttonLayout->setContentsMargins(5, 5, 5, 5);
       editButton = new QToolButton;
-      layout1->addWidget(editButton);
-      layout1->addStretch();
+      editButton->setMinimumWidth(175);
+      editButton->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding));
+      buttonLayout->addWidget(editButton);
+      layout1->addLayout(buttonLayout);
       layout->addLayout(layout1);
 
       drumPalette = new Palette;
       drumPalette->setMag(0.8);
       drumPalette->setSelectable(true);
+      drumPalette->setUseDoubleClickToActivate(true);
       drumPalette->setGrid(28, 60);
       PaletteScrollArea* sa = new PaletteScrollArea(drumPalette);
       sa->setFocusPolicy(Qt::NoFocus);
       layout->addWidget(sa);
 
       setWidget(w);
-//      setSizePolicy(QSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed));
 
       w = new QWidget(this);
       setTitleBarWidget(w);
@@ -77,6 +88,7 @@ DrumTools::DrumTools(QWidget* parent)
       void boxClicked(int);
       connect(drumPalette, SIGNAL(boxClicked(int)), SLOT(drumNoteSelected(int)));
       retranslate();
+      drumPalette->setContextMenuPolicy(Qt::PreventContextMenu);
       }
 
 //---------------------------------------------------------
@@ -85,9 +97,9 @@ DrumTools::DrumTools(QWidget* parent)
 
 void DrumTools::retranslate()
       {
-      setWindowTitle(tr("Drum Tools"));
+      setWindowTitle(tr("Drumset Tools"));
       editButton->setText(tr("Edit Drumset"));
-      drumPalette->setName(tr("Drums"));
+      drumPalette->setName(tr("Drumset"));
       }
 
 //---------------------------------------------------------
@@ -121,6 +133,9 @@ void DrumTools::updateDrumset(const Drumset* ds)
             chord->setStemDirection(dir);
             chord->setUp(up);
             chord->setTrack(voice);
+            Stem* stem = new Stem(gscore);
+            stem->setLen((up ? -3.0 : 3.0) * _spatium);
+            chord->add(stem);
             Note* note = new Note(gscore);
             note->setMark(true);
             note->setParent(chord);
@@ -130,16 +145,19 @@ void DrumTools::updateDrumset(const Drumset* ds)
             note->setLine(line);
             note->setPos(0.0, _spatium * .5 * line);
             note->setHeadGroup(noteHead);
+            SymId noteheadSym = SymId::noteheadBlack;
+            if (noteHead == NoteHead::Group::HEAD_CUSTOM)
+                  noteheadSym = drumset->noteHeads(pitch, NoteHead::Type::HEAD_QUARTER);
+            else
+                  noteheadSym = note->noteHead(true, noteHead, NoteHead::Type::HEAD_QUARTER);
+
+            note->setCachedNoteheadSym(noteheadSym); // we use the cached notehead so we don't recompute it at each layout
             chord->add(note);
-            Stem* stem = new Stem(gscore);
-            stem->setLen((up ? -3.0 : 3.0) * _spatium);
-            chord->add(stem);
-            stem->setPos(chord->stemPos());
             int sc = drumset->shortcut(pitch);
             QString shortcut;
             if (sc)
                   shortcut = QChar(sc);
-            drumPalette->append(chord, qApp->translate("drumset", drumset->name(pitch).toLatin1().data()), shortcut);
+            drumPalette->append(chord, qApp->translate("drumset", drumset->name(pitch).toUtf8().data()), shortcut);
             }
       }
 
@@ -187,7 +205,7 @@ void DrumTools::drumNoteSelected(int val)
             Note* note       = ch->downNote();
             int ticks        = MScore::defaultPlayDuration;
             int pitch        = note->pitch();
-            seq->startNote(staff->part()->instrument()->channel(0)->channel, pitch, 80, ticks, 0.0);
+            seq->startNote(staff->part()->instrument()->channel(0)->channel(), pitch, 80, ticks, 0.0);
 
             int track = (_score->inputState().track() / VOICES) * VOICES + element->track();
             _score->inputState().setTrack(track);
@@ -197,6 +215,9 @@ void DrumTools::drumNoteSelected(int val)
             getAction("voice-2")->setChecked(element->voice() == 1);
             getAction("voice-3")->setChecked(element->voice() == 2);
             getAction("voice-4")->setChecked(element->voice() == 3);
+
+            auto pitchCell = drumPalette->cellAt(val);
+            pitchName->setText(pitchCell->name);
             }
       }
 
@@ -209,6 +230,8 @@ int DrumTools::selectedDrumNote()
       if (element && element->type() == ElementType::CHORD) {
             Chord* ch  = static_cast<Chord*>(element);
             Note* note = ch->downNote();
+            auto pitchCell = drumPalette->cellAt(idx);
+            pitchName->setText(pitchCell->name);
             return note->pitch();
             }
       else {

@@ -11,9 +11,7 @@
 //=============================================================================
 
 #include "inspectorFingering.h"
-#include "musescore.h"
 #include "libmscore/fingering.h"
-#include "libmscore/score.h"
 
 namespace Ms {
 
@@ -22,24 +20,36 @@ namespace Ms {
 //---------------------------------------------------------
 
 InspectorFingering::InspectorFingering(QWidget* parent)
-   : InspectorTextBase(parent)
+   : InspectorStaffText(parent)
       {
-      f.setupUi(addWidget());
+      }
 
-      const std::vector<InspectorItem> iiList = {
-            { P_ID::SUB_STYLE, 0, f.subStyle,     f.resetSubStyle     },
+//---------------------------------------------------------
+//   allowedTextStyles
+//---------------------------------------------------------
+
+const std::vector<Tid>& InspectorFingering::allowedTextStyles()
+      {
+      static const std::vector<Tid> _fingeringTextStyles = {
+            Tid::FINGERING,
+            Tid::LH_GUITAR_FINGERING,
+            Tid::RH_GUITAR_FINGERING,
+            Tid::STRING_NUMBER,
+            Tid::USER1,
+            Tid::USER2,
+            Tid::USER3,
+            Tid::USER4,
+            Tid::USER5,
+            Tid::USER6,
+            Tid::USER7,
+            Tid::USER8,
+            Tid::USER9,
+            Tid::USER10,
+            Tid::USER11,
+            Tid::USER12,
             };
-      const std::vector<InspectorPanel> ppList = {
-            { f.title, f.panel }
-            };
 
-      f.subStyle->clear();
-      for (auto ss : { SubStyle::FINGERING, SubStyle::LH_GUITAR_FINGERING, SubStyle::RH_GUITAR_FINGERING, SubStyle::STRING_NUMBER } )
-            {
-            f.subStyle->addItem(subStyleUserName(ss), int(ss));
-            }
-
-      mapSignals(iiList, ppList);
+      return _fingeringTextStyles;
       }
 }
 

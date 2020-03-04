@@ -1,7 +1,6 @@
 //=============================================================================
 //  MuseScore
 //  Linux Music Score Editor
-//  $Id: capella.h 3833 2011-01-04 13:55:40Z wschweer $
 //
 //  Copyright (C) 2009-2013 Werner Schweer and others
 //
@@ -536,7 +535,7 @@ class BasicDurationalObj : public CapellaObj {
       void readCapx(XmlReader& e, unsigned int& fullm);
       void readCapxDisplay(XmlReader& e);
       void readCapxObjectArray(XmlReader& e);
-      int ticks() const;
+      Fraction ticks() const;
       bool invisible;
       QList<BasicDrawObj*> objects;
       };
@@ -718,7 +717,7 @@ class Capella {
 // capx support
    private:
       void readCapxVoice(XmlReader& e, CapStaff*, int);
-      void readCapxStaff(XmlReader& e, CapSystem*, int);
+      void readCapxStaff(XmlReader& e, CapSystem*);
       void readCapxSystem(XmlReader& e);
       void capxSystems(XmlReader& e);
       void readCapxStaveLayout(XmlReader& e, CapStaffLayout*, int);

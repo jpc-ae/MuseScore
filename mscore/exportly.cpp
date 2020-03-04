@@ -1,7 +1,6 @@
 //=============================================================================
 //  MusE Score
 //  Linux Music Score Editor
-//  $Id: exportly.cpp 5510 2012-03-30 14:51:09Z wschweer $
 //
 //  Copyright (C) 2007 Werner Schweer and others
 //
@@ -2009,7 +2008,7 @@ void ExportLy::buildGlissandoList(int strack, int etrack)
   //seems to be overkill to go thru entire score first to find
   //glissandos. Alternative would be to back up to the previous chord
   //in writeChordMeasure(). But I don't know how to do that. So I steal the
-  //buildinstructionlist-functions to make a parallell
+  //buildinstructionlist-functions to make a parallel
   //buildglissandolist-function. (og)
   for (MeasureBase* mb = score->measures()->first(); mb; mb = mb->next())
     {
@@ -2446,7 +2445,7 @@ int ExportLy::findSlur(const Slur* s) const
 }
 
 //---------------------------------------------------------
-//   doSlurStart. Find start of slur connecte to chord.
+//   doSlurStart. Find start of slur connected to chord.
 //---------------------------------------------------------
 
 void ExportLy::doSlurStart(Chord* chord, bool nextisrest)

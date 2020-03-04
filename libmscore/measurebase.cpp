@@ -143,7 +143,7 @@ void MeasureBase::add(Element* e)
                         setSectionBreak(true);
                         setNoBreak(false);
       //does not work with repeats: score()->tempomap()->setPause(endTick(), b->pause());
-                        score()->setLayoutAll();
+                        triggerLayoutAll();
                         break;
                   case LayoutBreak::NOBREAK:
                         setPageBreak(false);
@@ -153,8 +153,8 @@ void MeasureBase::add(Element* e)
                         break;
                   }
             if (next())
-                  score()->setLayout(next()->endTick());
-//            score()->setLayoutAll();     // TODO
+                  next()->triggerLayout();
+//            triggerLayoutAll();     // TODO
             }
       triggerLayout();
       _el.push_back(e);
@@ -178,8 +178,8 @@ void MeasureBase::remove(Element* el)
                         break;
                   case LayoutBreak::SECTION:
                         setSectionBreak(false);
-                        score()->setPause(endTick()-1, 0);
-                        score()->setLayoutAll();
+                        score()->setPause(endTick(), 0);
+                        triggerLayoutAll();
                         break;
                   case LayoutBreak::NOBREAK:
                         setNoBreak(false);
@@ -213,7 +213,7 @@ Measure* MeasureBase::nextMeasure() const
 Measure* MeasureBase::nextMeasureMM() const
       {
       Measure* mm = nextMeasure();
-      if (mm && score()->styleB(StyleIdx::createMultiMeasureRests) && mm->hasMMRest())
+      if (mm && score()->styleB(Sid::createMultiMeasureRests) && mm->hasMMRest())
             return mm->mmRest();
       return mm;
       }
@@ -243,7 +243,7 @@ Measure* MeasureBase::prevMeasureMM() const
       while (m) {
             if (m->isMeasure()) {
                   Measure* mm = toMeasure(m);
-                  if (score()->styleB(StyleIdx::createMultiMeasureRests)) {
+                  if (score()->styleB(Sid::createMultiMeasureRests)) {
                         if (mm->mmRestCount() >= 0) {
                               if (mm->hasMMRest())
                                     return mm->mmRest();
@@ -294,9 +294,21 @@ void MeasureBase::layout()
                         }
                   element->setPos(x, y);
                   }
+            else if (element->isMarker() || element->isJump())
+                  ;
             else
                   element->layout();
             }
+      }
+
+//---------------------------------------------------------
+//   triggerLayout
+//---------------------------------------------------------
+
+void MeasureBase::triggerLayout() const
+      {
+      if (prev() || next()) // avoid triggering layout before getting added to a score
+            score()->setLayout(tick(), -1, this);
       }
 
 //---------------------------------------------------------
@@ -321,15 +333,19 @@ MeasureBase* Score::last()  const
 //   getProperty
 //---------------------------------------------------------
 
-QVariant MeasureBase::getProperty(P_ID id) const
+QVariant MeasureBase::getProperty(Pid id) const
       {
       switch (id) {
-            case P_ID::REPEAT_END:
+            case Pid::REPEAT_END:
                   return repeatEnd();
-            case P_ID::REPEAT_START:
+            case Pid::REPEAT_START:
                   return repeatStart();
-            case P_ID::REPEAT_JUMP:
+            case Pid::REPEAT_JUMP:
                   return repeatJump();
+            case Pid::NO_OFFSET:
+                  return noOffset();
+            case Pid::IRREGULAR:
+                  return irregular();
             default:
                   return Element::getProperty(id);
             }
@@ -339,24 +355,31 @@ QVariant MeasureBase::getProperty(P_ID id) const
 //   setProperty
 //---------------------------------------------------------
 
-bool MeasureBase::setProperty(P_ID id, const QVariant& value)
+bool MeasureBase::setProperty(Pid id, const QVariant& value)
       {
       switch (id) {
-            case P_ID::REPEAT_END:
+            case Pid::REPEAT_END:
                   setRepeatEnd(value.toBool());
                   break;
-            case P_ID::REPEAT_START:
+            case Pid::REPEAT_START:
                   setRepeatStart(value.toBool());
                   break;
-            case P_ID::REPEAT_JUMP:
+            case Pid::REPEAT_JUMP:
                   setRepeatJump(value.toBool());
+                  break;
+            case Pid::NO_OFFSET:
+                  setNoOffset(value.toInt());
+                  break;
+            case Pid::IRREGULAR:
+                  setIrregular(value.toBool());
                   break;
             default:
                   if (!Element::setProperty(id, value))
                         return false;
                   break;
             }
-      score()->setLayoutAll();
+      triggerLayoutAll();
+      score()->setPlaylistDirty();
       return true;
       }
 
@@ -364,12 +387,12 @@ bool MeasureBase::setProperty(P_ID id, const QVariant& value)
 //   propertyDefault
 //---------------------------------------------------------
 
-QVariant MeasureBase::propertyDefault(P_ID propertyId) const
+QVariant MeasureBase::propertyDefault(Pid propertyId) const
       {
       switch (propertyId) {
-            case P_ID::REPEAT_END:
-            case P_ID::REPEAT_START:
-            case P_ID::REPEAT_JUMP:
+            case Pid::REPEAT_END:
+            case Pid::REPEAT_START:
+            case Pid::REPEAT_JUMP:
                   return false;
             default:
                   break;
@@ -419,7 +442,8 @@ void MeasureBase::undoSetBreak(bool v, LayoutBreak::Type type)
             LayoutBreak* lb = new LayoutBreak(score());
             lb->setLayoutBreakType(type);
             lb->setTrack(-1);       // this are system elements
-            lb->setParent(this);
+            MeasureBase* mb = (isMeasure() && toMeasure(this)->isMMRest()) ? toMeasure(this)->mmRestLast() : this;
+            lb->setParent(mb);
             score()->undoAddElement(lb);
             }
       cleanupLayoutBreaks(true);
@@ -471,11 +495,25 @@ MeasureBase* MeasureBase::nextMM() const
       {
       if (_next
          && _next->isMeasure()
-         && score()->styleB(StyleIdx::createMultiMeasureRests)
+         && score()->styleB(Sid::createMultiMeasureRests)
          && toMeasure(_next)->hasMMRest()) {
             return toMeasure(_next)->mmRest();
             }
       return _next;
+      }
+
+//---------------------------------------------------------
+//   prevMM
+//---------------------------------------------------------
+
+MeasureBase* MeasureBase::prevMM() const
+      {
+      if (_prev
+         && _prev->isMeasure()
+         && score()->styleB(Sid::createMultiMeasureRests)) {
+            return const_cast<Measure*>(toMeasure(_prev)->mmRest1());
+            }
+      return _prev;
       }
 
 //---------------------------------------------------------
@@ -541,7 +579,6 @@ bool MeasureBase::readProperties(XmlReader& e)
 
 //---------------------------------------------------------
 //   index
-//    for debugging only
 //---------------------------------------------------------
 
 int MeasureBase::index() const
@@ -552,6 +589,27 @@ int MeasureBase::index() const
             if (m == this)
                   return idx;
             m = m->next();
+            ++idx;
+            }
+      return  -1;
+      }
+
+//---------------------------------------------------------
+//   measureIndex
+//    returns index of measure counting only Measures but
+//    skipping other MeasureBase descendants
+//---------------------------------------------------------
+
+int MeasureBase::measureIndex() const
+      {
+      int idx = 0;
+      MeasureBase* m = score()->first();
+      while (m) {
+            if (m == this)
+                  return idx;
+            m = m->next();
+            if (m && m->isMeasure())
+                  ++idx;
             }
       return  -1;
       }

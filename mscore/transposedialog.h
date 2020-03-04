@@ -1,7 +1,6 @@
 //=============================================================================
 //  MusE Score
 //  Linux Music Score Editor
-//  $Id: transposedialog.h 4388 2011-06-18 13:17:58Z wschweer $
 //
 //  Copyright (C) 2008-2009 Werner Schweer and others
 //
@@ -36,11 +35,12 @@ class TransposeDialog : public QDialog, Ui::TransposeDialogBase {
       Q_OBJECT
 
       virtual void hideEvent(QHideEvent*);
+
    private slots:
       void transposeByKeyToggled(bool);
       void transposeByIntervalToggled(bool);
-      void on_chromaticBox_toggled(bool val);
-      void on_diatonicBox_toggled(bool val);
+      void chromaticBoxToggled(bool val);
+      void diatonicBoxToggled(bool val);
 
    public:
       TransposeDialog(QWidget* parent = 0);
